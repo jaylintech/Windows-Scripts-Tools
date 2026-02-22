@@ -1,2 +1,2 @@
 # resetnewoutlook
-Run the .bat file as administrator
+Run the batch file as administrator
