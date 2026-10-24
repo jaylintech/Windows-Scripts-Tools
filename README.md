@@ -14,6 +14,7 @@ own folder, its original README, and its full commit history.
 | [Reset-New-Outlook](Reset-New-Outlook/) | Deletes the New Outlook (Olk) `EBWebView` cache folder and `UserSettings.json` to force a clean reload. | No — touches only `%LOCALAPPDATA%` |
 | [Reset-Outlook-Classic-Cache](Reset-Outlook-Classic-Cache/) | Closes Outlook, optionally deletes `.ost` offline cache files (scheduling locked ones for deletion on reboot), and clears the Outlook temp file cache. | No |
 | [WindowsSystemInfo_Report](WindowsSystemInfo_Report/) | Writes `SystemInfo_Report.txt` to the Desktop listing recently installed KB updates, mapped network drives, and installed printers. | No |
+| [ActiveDirectory-GPO/Test-ADTrustAndIdentityState.ps1](ActiveDirectory-GPO/) | Deep-dive PowerShell diagnostic for AD machine trust (`nltest` + LSA `$MACHINE.ACC\CupdTime` vs. AD `pwdLastSet`), `SYSTEM` (`0x3e7`) Kerberos ticket/encryption state, Credential Manager/LSASS session overrides, and DC TCP/UDP/RootDSE latency. | Recommended (`SYSTEM` or Admin for LSA secret & `0x3e7` cache) |
 
 ## Usage
 
