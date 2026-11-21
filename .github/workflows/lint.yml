@@ -1,0 +1,44 @@
+name: lint
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  powershell:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate PowerShell AST syntax
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem -Recurse -Filter '*.ps1'
+          $failed = $false
+          foreach ($file in $files) {
+              $tokens = $null
+              $errors = $null
+              [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$errors)
+              if ($errors.Count -gt 0) {
+                  Write-Error "Syntax errors in $($file.FullName): $($errors -join '; ')"
+                  $failed = $true
+              } else {
+                  Write-Host "OK: $($file.FullName)"
+              }
+          }
+          if ($failed) { exit 1 }
+
+      - name: Run PSScriptAnalyzer (Error severity)
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+              Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+          }
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Severity Error
+          if ($results) {
+              $results | Format-Table ScriptName, Line, RuleName, Message -AutoSize
+              exit 1
+          }
+          Write-Host "PSScriptAnalyzer passed with 0 errors."

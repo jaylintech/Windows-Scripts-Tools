@@ -1053,11 +1053,11 @@ function Test-UdpCldapProbe {
         [int]$TimeoutMs
     )
 
-    # Minimal 38-byte ASN.1 BER LDAPv3 RootDSE base-scope SearchRequest for (objectClass=*) requesting attribute "1.1"
+    # Minimal 44-byte ASN.1 BER LDAPv3 RootDSE base-scope SearchRequest for (objectClass=*) requesting attribute "1.1"
     [byte[]]$cldapPayload = @(
-        0x30, 0x24,
+        0x30, 0x2a,
         0x02, 0x01, 0x01,
-        0x63, 0x1f,
+        0x63, 0x25,
         0x04, 0x00,
         0x0a, 0x01, 0x00,
         0x0a, 0x01, 0x00,
@@ -1082,14 +1082,42 @@ function Test-UdpCldapProbe {
         $validLdap = ($null -ne $resp -and $resp.Length -gt 2 -and $resp[0] -eq 0x30)
         return [PSCustomObject]@{
             Reachable = [bool]$validLdap
+            Status    = if ($validLdap) { 'Responded' } else { 'UnexpectedResponse' }
             LatencyMs = [math]::Round($sw.Elapsed.TotalMilliseconds, 2)
             Error     = if ($validLdap) { $null } else { 'Unexpected UDP 389 response header' }
         }
     }
     catch {
         $sw.Stop()
+        $sockEx = if ($_.Exception -is [System.Net.Sockets.SocketException]) {
+            $_.Exception
+        }
+        elseif ($_.Exception.InnerException -is [System.Net.Sockets.SocketException]) {
+            $_.Exception.InnerException
+        }
+        else {
+            $null
+        }
+
+        if ($null -ne $sockEx) {
+            if ($sockEx.SocketErrorCode -eq [System.Net.Sockets.SocketError]::ConnectionReset) {
+                return [PSCustomObject]@{
+                    Reachable = $false
+                    Status    = 'Refused (ICMP Port Unreachable)'
+                    LatencyMs = $null
+                    Error     = $sockEx.Message
+                }
+            }
+            return [PSCustomObject]@{
+                Reachable = $false
+                Status    = 'NoResponseOrFiltered'
+                LatencyMs = $null
+                Error     = $sockEx.Message
+            }
+        }
         return [PSCustomObject]@{
             Reachable = $false
+            Status    = 'Error'
             LatencyMs = $null
             Error     = $_.Exception.Message
         }
@@ -1110,12 +1138,12 @@ function Test-UdpKerberos88Probe {
         [int]$TimeoutMs
     )
 
-    # Minimal ASN.1 Kerberos AS-REQ header frame to elicit a KRB-ERROR (0x7e) or verify socket reachability on UDP 88
+    # Minimal 27-byte ASN.1 DER Kerberos AS-REQ header frame to elicit a KRB-ERROR (0x7e) or verify socket reachability on UDP 88
     [byte[]]$krbProbe = @(
-        0x6a, 0x16, 0x30, 0x14,
+        0x6a, 0x19, 0x30, 0x17,
         0xa1, 0x03, 0x02, 0x01, 0x05,
         0xa2, 0x03, 0x02, 0x01, 0x0a,
-        0xa4, 0x0a, 0x30, 0x08, 0xa0, 0x06, 0x03, 0x04, 0x00, 0x00, 0x00, 0x00
+        0xa4, 0x0b, 0x30, 0x09, 0xa0, 0x07, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00
     )
 
     $udp = New-Object System.Net.Sockets.UdpClient
@@ -1136,26 +1164,35 @@ function Test-UdpKerberos88Probe {
             Error     = $null
         }
     }
-    catch [System.Net.Sockets.SocketException] {
-        $sw.Stop()
-        # WSAECONNRESET (10054) indicates ICMP Port Unreachable (closed UDP port)
-        if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::ConnectionReset) {
-            return [PSCustomObject]@{
-                Reachable = $false
-                Status    = 'Refused (ICMP Port Unreachable)'
-                LatencyMs = $null
-                Error     = $_.Exception.Message
-            }
-        }
-        return [PSCustomObject]@{
-            Reachable = $false
-            Status    = 'NoResponseOrFiltered'
-            LatencyMs = $null
-            Error     = $_.Exception.Message
-        }
-    }
     catch {
         $sw.Stop()
+        $sockEx = if ($_.Exception -is [System.Net.Sockets.SocketException]) {
+            $_.Exception
+        }
+        elseif ($_.Exception.InnerException -is [System.Net.Sockets.SocketException]) {
+            $_.Exception.InnerException
+        }
+        else {
+            $null
+        }
+
+        if ($null -ne $sockEx) {
+            # WSAECONNRESET (10054) indicates ICMP Port Unreachable (closed UDP port)
+            if ($sockEx.SocketErrorCode -eq [System.Net.Sockets.SocketError]::ConnectionReset) {
+                return [PSCustomObject]@{
+                    Reachable = $false
+                    Status    = 'Refused (ICMP Port Unreachable)'
+                    LatencyMs = $null
+                    Error     = $sockEx.Message
+                }
+            }
+            return [PSCustomObject]@{
+                Reachable = $false
+                Status    = 'NoResponseOrFiltered'
+                LatencyMs = $null
+                Error     = $sockEx.Message
+            }
+        }
         return [PSCustomObject]@{
             Reachable = $false
             Status    = 'Error'
@@ -1365,6 +1402,7 @@ function Test-DomainControllerConnectivity {
             Tcp88LatencyMs       = $tcp88.LatencyMs
             Udp389CldapReachable = $udp389.Reachable
             Udp389CldapLatencyMs = $udp389.LatencyMs
+            Udp389CldapStatus    = $udp389.Status
             Udp88KdcReachable    = $udp88.Reachable
             Udp88KdcLatencyMs    = $udp88.LatencyMs
             Udp88Status          = $udp88.Status
@@ -1582,7 +1620,7 @@ if ($credState.DomainOverrideRiskCredCount -gt 0) {
 }
 if ($credState.NewCredentialsSessionCount -gt 0) {
     Add-DiagnosticFinding -Severity 'Warning' -Category 'LsassSessions' `
-        -Finding "Detected $($credState.NewCredentialsSessionCount) active LogonType 9 (NewCredentials / `runas /netonly`) LSASS session(s)." `
+        -Finding "Detected $($credState.NewCredentialsSessionCount) active LogonType 9 (NewCredentials / ``runas /netonly``) LSASS session(s)." `
         -Remediation 'LogonType 9 sessions override outbound network credentials without changing the local identity. Terminate stale processes or log off the session.'
 }
 if ($credState.CachedInteractiveSessionCount -gt 0) {

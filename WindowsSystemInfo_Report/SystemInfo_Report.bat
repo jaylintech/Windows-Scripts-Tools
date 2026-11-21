@@ -4,10 +4,14 @@ setlocal enabledelayedexpansion
 :: ============================================================
 ::  SystemInfo_Report.bat
 ::  Gathers: Recent KB Updates, Network Drives, Printers
-::  Compatible with Windows 11 (Standard User - No Admin Needed)
+::  Compatible with Windows 11 24H2+ (Standard User - No Admin Needed)
 :: ============================================================
 
-set "REPORT=%USERPROFILE%\Desktop\SystemInfo_Report.txt"
+:: Resolve real Desktop path (handles OneDrive Known Folder Move)
+set "DESKTOP="
+for /f "usebackq delims=" %%D in (`powershell -NoProfile -ExecutionPolicy Bypass -Command "[Environment]::GetFolderPath('Desktop')" 2^>nul`) do set "DESKTOP=%%D"
+if not defined DESKTOP set "DESKTOP=%USERPROFILE%\Desktop"
+set "REPORT=%DESKTOP%\SystemInfo_Report.txt"
 
 echo ============================================================ > "%REPORT%"
 echo  SYSTEM INFORMATION REPORT >> "%REPORT%"
@@ -28,19 +32,11 @@ echo  RECENTLY INSTALLED KB UPDATES >> "%REPORT%"
 echo ============================================================ >> "%REPORT%"
 echo. >> "%REPORT%"
 
-:: Use wmic to list hotfixes (works without admin)
-wmic qfe get HotFixID,Description,InstalledOn,InstalledBy /format:csv 2>nul | findstr /v "^$" | findstr /v "Node," > "%TEMP%\kb_raw.txt"
-
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "Get-HotFix | Sort-Object InstalledOn -Descending | Format-Table -AutoSize -Property HotFixID, Description, InstalledOn, InstalledBy | Out-String -Width 200" >> "%REPORT%" 2>nul
 if %ERRORLEVEL% NEQ 0 (
-    echo  [!] WMIC query failed. Trying PowerShell fallback... >> "%REPORT%"
-    powershell -NoProfile -Command "Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object HotFixID, Description, InstalledOn, InstalledBy | Format-Table -AutoSize" >> "%REPORT%" 2>nul
-) else (
-    :: Parse CSV output into readable format
-    powershell -NoProfile -Command ^
-        "Get-HotFix | Sort-Object InstalledOn -Descending | Format-Table -AutoSize -Property HotFixID, Description, InstalledOn, InstalledBy | Out-String -Width 200" >> "%REPORT%" 2>nul
+    echo  [!] Unable to query installed hotfixes via Get-HotFix. >> "%REPORT%"
 )
-
-del "%TEMP%\kb_raw.txt" 2>nul
 echo. >> "%REPORT%"
 
 
@@ -69,7 +65,7 @@ echo. >> "%REPORT%"
 
 :: Method 3: PowerShell for additional detail
 echo  --- Drive Details (PowerShell) --- >> "%REPORT%"
-powershell -NoProfile -Command ^
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "Get-PSDrive -PSProvider FileSystem | Where-Object {$_.DisplayRoot -like '\\*'} | Format-Table -AutoSize Name, Root, DisplayRoot, Description | Out-String -Width 200" >> "%REPORT%" 2>nul
 echo. >> "%REPORT%"
 
@@ -86,19 +82,20 @@ echo. >> "%REPORT%"
 
 :: Method 1: PowerShell Get-Printer (works for standard users)
 echo  --- Printer List --- >> "%REPORT%"
-powershell -NoProfile -Command ^
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "Get-Printer | Sort-Object Name | Format-Table -AutoSize Name, DriverName, PortName, Shared, PrinterStatus, Type | Out-String -Width 300" >> "%REPORT%" 2>nul
 
 if %ERRORLEVEL% NEQ 0 (
-    echo  [!] PowerShell Get-Printer failed. Trying wmic fallback... >> "%REPORT%"
-    wmic printer get Name,DriverName,PortName,Network,Default /format:list >> "%REPORT%" 2>nul
+    echo  [!] PowerShell Get-Printer failed. Trying CIM Win32_Printer fallback... >> "%REPORT%"
+    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+        "Get-CimInstance Win32_Printer | Sort-Object Name | Format-Table -AutoSize Name, DriverName, PortName, Default, Network | Out-String -Width 300" >> "%REPORT%" 2>nul
 )
 
-:: Method 2: Default printer
+:: Method 2: Default printer (Win32_Printer exposes the Default property)
 echo. >> "%REPORT%"
 echo  --- Default Printer --- >> "%REPORT%"
-powershell -NoProfile -Command ^
-    "Get-Printer | Where-Object {$_.Default -eq $true} | Select-Object Name, DriverName, PortName | Format-List | Out-String" >> "%REPORT%" 2>nul
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "Get-CimInstance Win32_Printer -Filter 'Default = True' | Select-Object Name, DriverName, PortName | Format-List | Out-String" >> "%REPORT%" 2>nul
 
 echo. >> "%REPORT%"
 

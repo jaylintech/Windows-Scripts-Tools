@@ -26,7 +26,7 @@ Built for endpoints suffering from broken domain trust relationships, intermitte
 4. **Domain Controller Raw Socket & RootDSE Bind Telemetry**
    - Discovers current site DCs via `[System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain().FindAllDomainControllers()`, falling back to `_ldap._tcp.dc._msdcs.<domain>` DNS SRV resolution if the trust is broken.
    - Measures raw TCP handshake latency across ports `389` (LDAP), `636` (LDAPS), `3268` (Global Catalog), and `88` (Kerberos).
-   - Sends a 38-byte ASN.1 BER CLDAP RootDSE `SearchRequest` over UDP `389` and a Kerberos probe over UDP `88`, distinguishing live KDC/CLDAP responses from `ICMP Port Unreachable` (`WSAECONNRESET`) and silent firewall drops.
+   - Sends a 44-byte ASN.1 BER CLDAP RootDSE `SearchRequest` over UDP `389` and a Kerberos probe over UDP `88`, distinguishing live KDC/CLDAP responses from `ICMP Port Unreachable` (`WSAECONNRESET`) and silent firewall drops.
    - Performs timed LDAP RootDSE binds and parses `RootDSE.currentTime` to compute exact endpoint-to-DC clock skew in seconds.
 
 ### Usage

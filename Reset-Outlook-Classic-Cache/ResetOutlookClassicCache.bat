@@ -17,7 +17,7 @@ timeout /t 5 /nobreak >nul
 :: Show OST files
 echo.
 echo [2/3] OST (Offline Cache) files found:
-set OUTLOOKPATH=%LOCALAPPDATA%\Microsoft\Outlook
+set "OUTLOOKPATH=%LOCALAPPDATA%\Microsoft\Outlook"
 dir /b "%OUTLOOKPATH%\*.ost" 2>nul
 echo.
 
@@ -31,9 +31,14 @@ echo     Attempting to delete OST file(s)...
 for %%f in ("%OUTLOOKPATH%\*.ost") do (
     del /f /q "%%f" >nul 2>&1
     if exist "%%f" (
-        echo     %%~nxf is still locked. Scheduling for deletion on next reboot...
-        powershell -NoProfile -Command "$p='%%f'; Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class MFE { [DllImport(\"kernel32.dll\", CharSet=CharSet.Unicode)] public static extern bool MoveFileEx(string a, string b, int c); }'; [MFE]::MoveFileEx($p,$null,4)"
-        echo     Reboot your PC and the file will be deleted automatically.
+        echo     %%~nxf is still locked. Attempting to schedule deletion on next reboot...
+        set "TARGET_OST=%%f"
+        powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class MFE { [DllImport(\"kernel32.dll\", CharSet=CharSet.Unicode, SetLastError=true)] public static extern bool MoveFileEx(string a, string b, int c); }'; if (-not [MFE]::MoveFileEx($env:TARGET_OST, $null, 4)) { exit 1 }"
+        if !errorlevel! equ 0 (
+            echo     Scheduled for deletion on next reboot: %%~nxf
+        ) else (
+            echo     WARNING: Could not schedule deletion on reboot ^(requires Administrator rights^). Close all Office apps or reboot and delete manually.
+        )
     ) else (
         echo     Deleted: %%~nxf
     )
@@ -47,7 +52,7 @@ echo     Skipped: OST files kept.
 :: Clear Outlook Temporary Files
 echo.
 echo [3/3] Clearing Outlook Temporary Files...
-set OUTLOOKTEMP=%LOCALAPPDATA%\Microsoft\Windows\INetCache\Content.Outlook
+set "OUTLOOKTEMP=%LOCALAPPDATA%\Microsoft\Windows\INetCache\Content.Outlook"
 if exist "%OUTLOOKTEMP%" (
     for /d %%i in ("%OUTLOOKTEMP%\*") do rd /s /q "%%i" >nul 2>&1
     del /q /f "%OUTLOOKTEMP%\*" >nul 2>&1

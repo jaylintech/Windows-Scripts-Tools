@@ -1,4 +1,5 @@
 @echo off
+setlocal enableextensions
 title Fixing QuickBooks Online Desktop...
 echo Closing hung QuickBooks processes...
 taskkill /F /IM "QuickBooks*" /T >nul 2>&1
@@ -16,5 +17,7 @@ for %%B in ("%APPDATA%\QuickBooks Advanced" "%APPDATA%\QuickBooks Online") do (
 )
 
 echo Relaunching QuickBooks Online...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$exe = Get-ChildItem -Path $env:LOCALAPPDATA -Include 'QuickBooks Advanced.exe','QuickBooks Online.exe','QBO.exe' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike '*\packages\*' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName; if ($exe) { Start-Process -FilePath $exe -ArgumentList '--disable-gpu-shader-disk-cache' }"
-exit
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$names = @('QuickBooks Advanced.exe','QuickBooks Online.exe','QBO.exe'); $roots = @((Join-Path $env:LOCALAPPDATA 'Programs'), (Join-Path $env:LOCALAPPDATA 'Intuit'), (Join-Path $env:LOCALAPPDATA 'QuickBooks*'), (Join-Path $env:ProgramFiles 'Intuit'), (Join-Path ${env:ProgramFiles(x86)} 'Intuit')) | Where-Object { $_ -and (Test-Path $_) }; $exe = Get-ChildItem -Path $roots -Include $names -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike '*\packages\*' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName; if (-not $exe) { $exe = Get-ChildItem -Path $env:LOCALAPPDATA -Include $names -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notlike '*\packages\*' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName }; if ($exe) { Start-Process -FilePath $exe -ArgumentList '--disable-gpu-shader-disk-cache' } else { Write-Host 'WARNING: QuickBooks Online executable was not found under LocalAppData or Program Files.' -ForegroundColor Yellow; exit 1 }"
+if errorlevel 1 pause
+endlocal
+exit /b 0
