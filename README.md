@@ -8,6 +8,7 @@ This repository consolidates standalone troubleshooting utilities alongside deep
 
 | Tool | What it does | Admin required |
 |---|---|---|
+| [M365-EntraID-IR/Invoke-M365IdentityPersistenceAudit.ps1](M365-EntraID-IR/) | Read-only Cloud Identity IR auditor for Entra ID refresh token revocation gaps, newly added MFA methods/devices, risky OAuth consent grants (`offline_access` + mail/directory scopes), hidden Exchange Online inbox rules/forwarding/delegates, and cloud sign-in vs. Windows PRT correlation. | Graph read-only scopes (EXO optional; local Admin optional for endpoint EVTX) |
 | [ActiveDirectory-GPO/Test-ADTrustAndIdentityState.ps1](ActiveDirectory-GPO/) | Deep-dive PowerShell diagnostic for AD machine trust (`nltest` + LSA `$MACHINE.ACC\CupdTime` vs. AD `pwdLastSet`), `SYSTEM` (`0x3e7`) Kerberos ticket/encryption state, Credential Manager/LSASS session overrides, and DC TCP/UDP/RootDSE latency. | Recommended (`SYSTEM` or Admin for LSA secret & `0x3e7` cache) |
 | [Fix-QuickBooks](Fix-QuickBooks/) | Terminates hung QuickBooks Online Desktop processes, clears corrupted Electron state (`config.json`) and Chromium/GPU cache directories under `%APPDATA%`, and relaunches the latest binary from `%LOCALAPPDATA%` with `--disable-gpu-shader-disk-cache`. | No — touches only `%APPDATA%` and `%LOCALAPPDATA%` |
 | [Disable-New-Outlook](Disable-New-Outlook/) | Sets registry values that hide the "New Outlook" toggle and block auto-migration from Outlook Classic (`HKCU` for current user, plus machine-wide `HKLM` policy when run elevated). | Optional (standard user for `HKCU`; Admin for machine-wide `HKLM`) |
@@ -28,6 +29,7 @@ git clone https://github.com/jaylintech/Windows-Scripts-Tools.git
 
 ## Notes
 
+- **M365-EntraID-IR (`Invoke-M365IdentityPersistenceAudit.ps1`)** uses raw Microsoft Graph REST calls (`Invoke-MgGraphRequest`) for version-independent auditing, degrades gracefully when Exchange Online or Entra ID P1/P2 sign-in logs are unavailable, and never mutates tenant state.
 - **ActiveDirectory-GPO (`Test-ADTrustAndIdentityState.ps1`)** uses `SeBackupPrivilege` and `REG_OPTION_BACKUP_RESTORE` to read `HKLM:\SECURITY\Policy\Secrets\$MACHINE.ACC\CupdTime` without mutating registry DACLs.
 - **Fix-QuickBooks (`Fix-QuickBooks.cmd`)** can be placed directly on a user's Desktop as a single portable self-service fix for wedged QuickBooks Online Electron sessions.
 - **Disable-New-Outlook** targets Office `16.0` registry paths (Microsoft 365 / Office 2016–2024).
